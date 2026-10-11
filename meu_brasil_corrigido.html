@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Meu Brasil — Mapa de Viagens</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root{--green:#19a873;--ink:#16342b;--muted:#698079;--bg:#f3f8f5}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:var(--bg)}
+header{background:#fff;padding:17px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e0ece5}
+.brand{font-weight:850;font-size:22px;letter-spacing:-.7px}.brand span{color:var(--green)}
+main{max-width:1350px;margin:auto;padding:18px;display:grid;grid-template-columns:310px minmax(0,1fr);gap:16px}
+.panel,.mapwrap{background:#fff;border:1px solid #e1ece6;border-radius:20px;box-shadow:0 8px 30px #18432b0b;overflow:hidden}
+.panel{padding:20px;align-self:start}.eyebrow{font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:750;color:var(--muted)}
+.big{font-size:38px;font-weight:850;letter-spacing:-1.5px;margin:6px 0}.progress{height:10px;background:#e8f1eb;border-radius:30px;overflow:hidden}.progress div{height:100%;background:var(--green);width:0%;transition:width .3s}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.metric{background:#f4f9f6;padding:12px;border-radius:13px}.metric b{display:block;font-size:23px}.metric small{color:var(--muted)}
+label{display:block;font-weight:750;font-size:13px;margin:16px 0 7px}select,input,button{font:inherit}select,input{width:100%;padding:12px;border:1px solid #d8e5dc;border-radius:11px;background:white;color:var(--ink)}
+button{cursor:pointer;border:0;border-radius:11px;padding:11px 14px;font-weight:750;background:var(--green);color:white}button.secondary{background:#eaf5ee;color:#166c4d}button.outline{background:white;border:1px solid #d8e5dc;color:var(--ink)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.hint{font-size:12px;line-height:1.55;color:var(--muted)}.maphead{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;gap:10px}.maphead h2{margin:0;font-size:17px}.maphead small{color:var(--muted)}#map{height:min(73vh,750px);min-height:420px;background:#eaf3ed}.legend{padding:12px 18px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.dot{display:inline-block;width:12px;height:12px;border:1px solid #95aa9e;border-radius:3px;margin-right:6px;vertical-align:-1px}.visited{background:var(--green)}.unvisited{background:white}.status{font-size:12px;color:var(--muted);padding-top:10px;min-height:30px}.list{max-height:160px;overflow:auto;font-size:13px;margin-top:9px}.list div{padding:7px 0;border-bottom:1px solid #edf3ee}.leaflet-popup-content button{width:100%;margin-top:8px}.leaflet-popup-content{min-width:175px}.leaflet-popup-content strong{font-size:15px}
+@media(max-width:760px){main{display:flex;flex-direction:column;padding:10px;gap:10px}.panel{width:100%;padding:16px}.metrics{margin:10px 0}.big{font-size:30px}#map{height:58vh;min-height:350px}.maphead{padding:12px}.mapwrap{order:1}.panel{order:2}header{padding:12px 15px}}
+</style></head><body>
+<header><div class="brand">🌎 Meu <span>Brasil</span></div><span style="font-size:12px;color:#698079">Meu mapa de viagens</span></header>
+<main>
+<section class="panel">
+<div class="eyebrow">Seu progresso pelo Brasil</div><div class="big" id="pct">0,00%</div><div class="progress"><div id="bar"></div></div>
+<div class="metrics"><div class="metric"><b id="count">0</b><small>Municípios visitados</small></div><div class="metric"><b id="remaining">5.570</b><small>Por conhecer*</small></div></div>
+<label for="state">Visualizar Brasil inteiro ou filtrar por estado</label><select id="state"><option value="">Brasil inteiro (todas as cidades)</option></select>
+<div id="saveStatus" class="status" aria-live="polite">As visitas são salvas apenas neste navegador. Use o Safari fora do ChatGPT.</div><div id="status" class="status">Carregando o mapa de todos os municípios do Brasil...</div>
+<label>Suas cidades visitadas neste estado</label><div class="list" id="visitedList"><span class="hint">Nenhuma cidade marcada neste estado.</span></div>
+<div class="actions"><button id="export" class="secondary">Exportar dados</button><button id="importBtn" class="outline">Importar dados</button></div>
+<input type="file" id="importFile" accept="application/json,.json" style="display:none">
+<p class="hint">Toque em uma cidade no mapa e escolha “Marcar como visitada”. As marcações ficam salvas neste navegador. Faça um backup pelo botão Exportar dados.</p>
+<p class="hint">* Indicador baseado em 5.570 unidades de contagem (5.569 municípios e o Distrito Federal), conforme IBGE 2025. Não mede a área efetivamente percorrida.</p>
+</section>
+<section class="mapwrap"><div class="maphead"><div><h2>Mapa interativo</h2><small id="subtitle">Brasil · todos os municípios</small></div><button class="secondary" id="resetView">Ver Brasil</button></div><div id="map"></div><div class="legend"><span><i class="dot visited"></i>Visitado</span><span><i class="dot unvisited"></i>Não visitado</span><span>Toque em cada município para marcar ou desmarcar</span></div></section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const states=[["AC",12,"Acre"],["AL",27,"Alagoas"],["AP",16,"Amapá"],["AM",13,"Amazonas"],["BA",29,"Bahia"],["CE",23,"Ceará"],["DF",53,"Distrito Federal"],["ES",32,"Espírito Santo"],["GO",52,"Goiás"],["MA",21,"Maranhão"],["MT",51,"Mato Grosso"],["MS",50,"Mato Grosso do Sul"],["MG",31,"Minas Gerais"],["PA",15,"Pará"],["PB",25,"Paraíba"],["PR",41,"Paraná"],["PE",26,"Pernambuco"],["PI",22,"Piauí"],["RJ",33,"Rio de Janeiro"],["RN",24,"Rio Grande do Norte"],["RS",43,"Rio Grande do Sul"],["RO",11,"Rondônia"],["RR",14,"Roraima"],["SC",42,"Santa Catarina"],["SP",35,"São Paulo"],["SE",28,"Sergipe"],["TO",17,"Tocantins"]];
+const $=id=>document.getElementById(id), storageKey='meu-brasil-visitas-v1';
+let saved={};try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')}catch(e){}
+let active=null,layer=null,featureNames={},loadedState='';
+states.forEach(([uf,code,name])=>{let o=document.createElement('option');o.value=uf;o.textContent=`${name} (${uf})`; $('state').append(o)});
+const map=L.map('map',{preferCanvas:true}).setView([-14.6,-52.7],4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);
+const byUF=Object.fromEntries(states.map(s=>[s[0],s]));
+function keyFor(f,uf){let p=f.properties||{};let raw=p.id||p.cd_geocmu||p.codarea||p.codigo_ibge||p.code||f.id;return uf+':'+String(raw||p.name||p.nome||'').trim()}
+function nameFor(f){let p=f.properties||{};return p.nome||p.name||p.NM_MUN||p.description||'Município'}
+function persist(){
+ try {
+  localStorage.setItem(storageKey,JSON.stringify(saved));
+  if(localStorage.getItem(storageKey)!==JSON.stringify(saved))throw Error('A gravação não foi confirmada');
+  $('saveStatus').textContent='✓ Marcações salvas neste navegador';
+  $('saveStatus').style.color='#16734e';
+ }catch(e){
+  $('saveStatus').textContent='⚠ Este navegador não está permitindo salvar. Abra o site diretamente no Safari e exporte um backup.';
+  $('saveStatus').style.color='#b34224';
+ }
+ refresh();
+}
+function refresh(){
+const count=Object.keys(saved).length;const pct=count/5570*100;
+$('count').textContent=count.toLocaleString('pt-BR');$('remaining').textContent=Math.max(0,5570-count).toLocaleString('pt-BR');
+$('pct').textContent=pct.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';$('bar').style.width=Math.min(pct,100)+'%';
+const uf=$('state').value;let items=Object.entries(saved).filter(([k,v])=>(!uf||v.uf===uf)).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt-BR'));
+$('visitedList').innerHTML=items.length?items.map(([k,v])=>`<div>✓ ${escapeHtml(v.name)}</div>`).join(''):'<span class="hint">Nenhuma cidade marcada neste estado.</span>';
+if(layer)layer.eachLayer(l=>{if(l.feature)l.setStyle(style(l.feature,l.feature.properties.uf||uf))});
+}
+
+async function loadAll(){
+ $('status').textContent='Carregando os 27 mapas estaduais e seus municípios...';
+ $('subtitle').textContent='Brasil · municípios';
+ if(layer){map.removeLayer(layer);layer=null}
+ let finished=0,failed=[];
+ const collections=await Promise.all(states.map(async ([uf,code,name])=>{
+  try{
+   const res=await fetch(`https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-${code}-mun.json`);
+   if(!res.ok)throw Error('HTTP '+res.status);
+   const data=await res.json();
+   (data.features||[]).forEach(f=>{f.properties=f.properties||{};f.properties.uf=uf});
+   return data.features||[];
+  }catch(e){failed.push(uf);return []}
+  finally{finished++;$('status').textContent=`Carregando mapas: ${finished}/27 estados...`}
+ }));
+ if($('state').value)return;
+ const features=collections.flat();
+ if(!features.length){$('status').textContent='Não foi possível obter os mapas. Verifique sua internet e recarregue.';return}
+ layer=L.geoJSON({type:'FeatureCollection',features},{renderer:L.canvas(),style:f=>style(f,f.properties.uf),onEachFeature:(f,l)=>{
+  const uf=f.properties.uf,k=keyFor(f,uf),n=nameFor(f);
+  l.on('click',()=>{
+   const marked=!!saved[k],popup=document.createElement('div');
+   const title=document.createElement('strong');title.textContent=n;popup.append(title,document.createElement('br'));
+   const small=document.createElement('small');small.textContent=uf+' · '+(marked?'Visitada':'Não visitada');popup.append(small,document.createElement('br'));
+   const btn=document.createElement('button');btn.textContent=marked?'Desmarcar visita':'✓ Marcar como visitada';
+   btn.onclick=()=>{if(saved[k])delete saved[k];else saved[k]={uf,name:n};persist();map.closePopup()};
+   popup.append(btn);l.bindPopup(popup).openPopup();
+  });
+ }}).addTo(map);
+ map.fitBounds(layer.getBounds(),{padding:[8,8]});
+ $('status').textContent=features.length.toLocaleString('pt-BR')+' municípios/áreas carregados'+(failed.length?'. Falharam: '+failed.join(', '):'.');
+ refresh();
+}
+function escapeHtml(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function style(f,uf){return {color:'#88a69a',weight:.75,fillColor:saved[keyFor(f,uf)]?'#19a873':'#ffffff',fillOpacity:saved[keyFor(f,uf)]?.82:.72}}
+async function loadState(uf){
+if(!uf){await loadAll();return;}const [_,code,name]=byUF[uf];$('status').textContent=`Carregando municípios de ${name}...`;$('subtitle').textContent=name;
+if(layer){map.removeLayer(layer);layer=null}
+const url=`https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-${code}-mun.json`;
+try{
+const res=await fetch(url);if(!res.ok)throw Error('HTTP '+res.status);const data=await res.json();
+if($('state').value!==uf)return;
+layer=L.geoJSON(data,{renderer:L.canvas(),style:f=>style(f,uf),onEachFeature:(f,l)=>{
+let k=keyFor(f,uf),n=nameFor(f);featureNames[k]=n;
+l.on('click',()=>{const marked=!!saved[k];const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=n;popup.append(title);popup.append(document.createElement('br'));const detail=document.createElement('small');detail.textContent=`${name} · ${marked?'Já visitada':'Ainda não visitada'}`;popup.append(detail);popup.append(document.createElement('br'));const btn=document.createElement('button');btn.textContent=marked?'Desmarcar visita':'✓ Marcar como visitada';btn.onclick=()=>{if(saved[k])delete saved[k];else saved[k]={uf,name:n};persist();map.closePopup()};popup.append(btn);l.bindPopup(popup).openPopup()});
+}}).addTo(map);
+map.fitBounds(layer.getBounds(),{padding:[12,12]});loadedState=uf;$('status').textContent=`${data.features.length} áreas municipais carregadas. Toque em uma cidade.`;refresh();
+}catch(e){$('status').textContent='Não foi possível carregar o mapa municipal. Verifique sua internet e tente selecionar o estado novamente.';console.error(e)}
+}
+$('state').addEventListener('change',e=>{refresh();loadState(e.target.value)});
+$('resetView').onclick=()=>{$('state').value='';loadAll()};
+$('export').onclick=()=>{const blob=new Blob([JSON.stringify({app:'Meu Brasil',version:1,visits:saved},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='meu-brasil-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{let j=JSON.parse(await f.text());if(!j.visits||typeof j.visits!=='object'||Array.isArray(j.visits))throw Error();if(!confirm('Substituir suas marcações atuais pelo arquivo importado?'))return;saved=j.visits;persist();alert('Marcações importadas!')}catch(e){alert('Arquivo de backup inválido.')}e.target.value=''};
+try {let test='meu-brasil-teste';localStorage.setItem(test,'ok');if(localStorage.getItem(test)!=='ok')throw Error();localStorage.removeItem(test);$('saveStatus').textContent='Armazenamento disponível neste navegador';}catch(e){$('saveStatus').textContent='⚠ Armazenamento indisponível. Abra diretamente no Safari.';$('saveStatus').style.color='#b34224'}
+refresh();loadAll();
+</script></body></html>
