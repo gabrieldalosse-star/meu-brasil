@@ -1,124 +1,805 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Meu Brasil — Mapa de Viagens</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-:root{--green:#19a873;--ink:#16342b;--muted:#698079;--bg:#f3f8f5}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);background:var(--bg)}
-header{background:#fff;padding:17px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e0ece5}
-.brand{font-weight:850;font-size:22px;letter-spacing:-.7px}.brand span{color:var(--green)}
-main{max-width:1350px;margin:auto;padding:18px;display:grid;grid-template-columns:310px minmax(0,1fr);gap:16px}
-.panel,.mapwrap{background:#fff;border:1px solid #e1ece6;border-radius:20px;box-shadow:0 8px 30px #18432b0b;overflow:hidden}
-.panel{padding:20px;align-self:start}.eyebrow{font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:750;color:var(--muted)}
-.big{font-size:38px;font-weight:850;letter-spacing:-1.5px;margin:6px 0}.progress{height:10px;background:#e8f1eb;border-radius:30px;overflow:hidden}.progress div{height:100%;background:var(--green);width:0%;transition:width .3s}
-.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.metric{background:#f4f9f6;padding:12px;border-radius:13px}.metric b{display:block;font-size:23px}.metric small{color:var(--muted)}
-label{display:block;font-weight:750;font-size:13px;margin:16px 0 7px}select,input,button{font:inherit}select,input{width:100%;padding:12px;border:1px solid #d8e5dc;border-radius:11px;background:white;color:var(--ink)}
-button{cursor:pointer;border:0;border-radius:11px;padding:11px 14px;font-weight:750;background:var(--green);color:white}button.secondary{background:#eaf5ee;color:#166c4d}button.outline{background:white;border:1px solid #d8e5dc;color:var(--ink)}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.hint{font-size:12px;line-height:1.55;color:var(--muted)}.maphead{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;gap:10px}.maphead h2{margin:0;font-size:17px}.maphead small{color:var(--muted)}#map{height:min(73vh,750px);min-height:420px;background:#eaf3ed}.legend{padding:12px 18px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.dot{display:inline-block;width:12px;height:12px;border:1px solid #95aa9e;border-radius:3px;margin-right:6px;vertical-align:-1px}.visited{background:var(--green)}.unvisited{background:white}.status{font-size:12px;color:var(--muted);padding-top:10px;min-height:30px}.list{max-height:160px;overflow:auto;font-size:13px;margin-top:9px}.list div{padding:7px 0;border-bottom:1px solid #edf3ee}.leaflet-popup-content button{width:100%;margin-top:8px}.leaflet-popup-content{min-width:175px}.leaflet-popup-content strong{font-size:15px}
-@media(max-width:760px){main{display:flex;flex-direction:column;padding:10px;gap:10px}.panel{width:100%;padding:16px}.metrics{margin:10px 0}.big{font-size:30px}#map{height:58vh;min-height:350px}.maphead{padding:12px}.mapwrap{order:1}.panel{order:2}header{padding:12px 15px}}
-</style></head><body>
-<header><div class="brand">🌎 Meu <span>Brasil</span></div><span style="font-size:12px;color:#698079">Meu mapa de viagens</span></header>
-<main>
-<section class="panel">
-<div class="eyebrow">Seu progresso pelo Brasil</div><div class="big" id="pct">0,00%</div><div class="progress"><div id="bar"></div></div>
-<div class="metrics"><div class="metric"><b id="count">0</b><small>Municípios visitados</small></div><div class="metric"><b id="remaining">5.570</b><small>Por conhecer*</small></div></div>
-<label for="state">Visualizar Brasil inteiro ou filtrar por estado</label><select id="state"><option value="">Brasil inteiro (todas as cidades)</option></select>
-<div id="saveStatus" class="status" aria-live="polite">As visitas são salvas apenas neste navegador. Use o Safari fora do ChatGPT.</div><div id="status" class="status">Carregando o mapa de todos os municípios do Brasil...</div>
-<label>Suas cidades visitadas neste estado</label><div class="list" id="visitedList"><span class="hint">Nenhuma cidade marcada neste estado.</span></div>
-<div class="actions"><button id="export" class="secondary">Exportar dados</button><button id="importBtn" class="outline">Importar dados</button></div>
-<input type="file" id="importFile" accept="application/json,.json" style="display:none">
-<p class="hint">Toque em uma cidade no mapa e escolha “Marcar como visitada”. As marcações ficam salvas neste navegador. Faça um backup pelo botão Exportar dados.</p>
-<p class="hint">* Indicador baseado em 5.570 unidades de contagem (5.569 municípios e o Distrito Federal), conforme IBGE 2025. Não mede a área efetivamente percorrida.</p>
-</section>
-<section class="mapwrap"><div class="maphead"><div><h2>Mapa interativo</h2><small id="subtitle">Brasil · todos os municípios</small></div><button class="secondary" id="resetView">Ver Brasil</button></div><div id="map"></div><div class="legend"><span><i class="dot visited"></i>Visitado</span><span><i class="dot unvisited"></i>Não visitado</span><span>Toque em cada município para marcar ou desmarcar</span></div></section>
-</main>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const states=[["AC",12,"Acre"],["AL",27,"Alagoas"],["AP",16,"Amapá"],["AM",13,"Amazonas"],["BA",29,"Bahia"],["CE",23,"Ceará"],["DF",53,"Distrito Federal"],["ES",32,"Espírito Santo"],["GO",52,"Goiás"],["MA",21,"Maranhão"],["MT",51,"Mato Grosso"],["MS",50,"Mato Grosso do Sul"],["MG",31,"Minas Gerais"],["PA",15,"Pará"],["PB",25,"Paraíba"],["PR",41,"Paraná"],["PE",26,"Pernambuco"],["PI",22,"Piauí"],["RJ",33,"Rio de Janeiro"],["RN",24,"Rio Grande do Norte"],["RS",43,"Rio Grande do Sul"],["RO",11,"Rondônia"],["RR",14,"Roraima"],["SC",42,"Santa Catarina"],["SP",35,"São Paulo"],["SE",28,"Sergipe"],["TO",17,"Tocantins"]];
-const $=id=>document.getElementById(id), storageKey='meu-brasil-visitas-v1';
-let saved={};try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')}catch(e){}
-let active=null,layer=null,featureNames={},loadedState='';
-states.forEach(([uf,code,name])=>{let o=document.createElement('option');o.value=uf;o.textContent=`${name} (${uf})`; $('state').append(o)});
-const map=L.map('map',{preferCanvas:true}).setView([-14.6,-52.7],4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);
-const byUF=Object.fromEntries(states.map(s=>[s[0],s]));
-function keyFor(f,uf){let p=f.properties||{};let raw=p.id||p.cd_geocmu||p.codarea||p.codigo_ibge||p.code||f.id;return uf+':'+String(raw||p.name||p.nome||'').trim()}
-function nameFor(f){let p=f.properties||{};return p.nome||p.name||p.NM_MUN||p.description||'Município'}
-function persist(){
- try {
-  localStorage.setItem(storageKey,JSON.stringify(saved));
-  if(localStorage.getItem(storageKey)!==JSON.stringify(saved))throw Error('A gravação não foi confirmada');
-  $('saveStatus').textContent='✓ Marcações salvas neste navegador';
-  $('saveStatus').style.color='#16734e';
- }catch(e){
-  $('saveStatus').textContent='⚠ Este navegador não está permitindo salvar. Abra o site diretamente no Safari e exporte um backup.';
-  $('saveStatus').style.color='#b34224';
- }
- refresh();
-}
-function refresh(){
-const count=Object.keys(saved).length;const pct=count/5570*100;
-$('count').textContent=count.toLocaleString('pt-BR');$('remaining').textContent=Math.max(0,5570-count).toLocaleString('pt-BR');
-$('pct').textContent=pct.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';$('bar').style.width=Math.min(pct,100)+'%';
-const uf=$('state').value;let items=Object.entries(saved).filter(([k,v])=>(!uf||v.uf===uf)).sort((a,b)=>a[1].name.localeCompare(b[1].name,'pt-BR'));
-$('visitedList').innerHTML=items.length?items.map(([k,v])=>`<div>✓ ${escapeHtml(v.name)}</div>`).join(''):'<span class="hint">Nenhuma cidade marcada neste estado.</span>';
-if(layer)layer.eachLayer(l=>{if(l.feature)l.setStyle(style(l.feature,l.feature.properties.uf||uf))});
-}
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Mapa pessoal de cidades visitadas no Brasil, com sincronização opcional pela sua conta Google.">
+  <title>Meu Brasil — Mapa de Viagens</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root { --green:#19a873; --green-dark:#116b49; --ink:#16342b; --muted:#698079; --bg:#f3f8f5; --line:#e0ece5; --warning:#a45218; --danger:#b34224; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+    header { background:#fff; padding:15px 20px; display:flex; align-items:center; justify-content:space-between; gap:14px; border-bottom:1px solid var(--line); }
+    .brand { font-weight:850; font-size:22px; letter-spacing:-.7px; white-space:nowrap; }
+    .brand span { color:var(--green); }
+    .account { display:flex; align-items:center; justify-content:flex-end; gap:9px; min-width:0; }
+    .account-copy { min-width:0; text-align:right; line-height:1.25; }
+    .account-copy strong,.account-copy small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .account-copy strong { font-size:13px; }
+    .account-copy small { color:var(--muted); font-size:11px; }
+    main { max-width:1350px; margin:auto; padding:18px; display:grid; grid-template-columns:320px minmax(0,1fr); gap:16px; }
+    .panel,.mapwrap { background:#fff; border:1px solid #e1ece6; border-radius:20px; box-shadow:0 8px 30px #18432b0b; overflow:hidden; }
+    .panel { padding:20px; align-self:start; }
+    .eyebrow { font-size:12px; letter-spacing:1px; text-transform:uppercase; font-weight:750; color:var(--muted); }
+    .big { font-size:38px; font-weight:850; letter-spacing:-1.5px; margin:6px 0; }
+    .progress { height:10px; background:#e8f1eb; border-radius:30px; overflow:hidden; }
+    .progress div { height:100%; background:var(--green); width:0%; transition:width .3s; }
+    .metrics { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:18px 0; }
+    .metric { background:#f4f9f6; padding:12px; border-radius:13px; }
+    .metric b { display:block; font-size:23px; }
+    .metric small { color:var(--muted); }
+    label { display:block; font-weight:750; font-size:13px; margin:16px 0 7px; }
+    select,input,button { font:inherit; }
+    select,input { width:100%; padding:12px; border:1px solid #d8e5dc; border-radius:11px; background:#fff; color:var(--ink); }
+    button { cursor:pointer; border:0; border-radius:11px; padding:10px 13px; font-weight:750; background:var(--green); color:#fff; }
+    button:hover { filter:brightness(.97); }
+    button:focus-visible,select:focus-visible,input:focus-visible { outline:3px solid #9adcc2; outline-offset:2px; }
+    button:disabled { cursor:not-allowed; opacity:.62; }
+    button.secondary { background:#eaf5ee; color:#166c4d; }
+    button.outline { background:#fff; border:1px solid #d8e5dc; color:var(--ink); }
+    .login-button { white-space:nowrap; padding:9px 12px; font-size:13px; }
+    .actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+    .hint { font-size:12px; line-height:1.55; color:var(--muted); }
+    .notice { margin:13px 0 4px; padding:10px 11px; border:1px solid #d8e9df; border-radius:12px; background:#f5fbf7; font-size:12px; line-height:1.45; color:var(--muted); }
+    .notice strong { display:block; color:var(--ink); margin-bottom:2px; }
+    .maphead { display:flex; justify-content:space-between; align-items:center; padding:15px 18px; gap:10px; }
+    .maphead h2 { margin:0; font-size:17px; }
+    .maphead small { color:var(--muted); }
+    #map { height:min(73vh,750px); min-height:420px; background:#eaf3ed; }
+    .legend { padding:12px 18px; display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+    .dot { display:inline-block; width:12px; height:12px; border:1px solid #95aa9e; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+    .visited { background:var(--green); }.unvisited { background:#fff; }
+    .status { font-size:12px; line-height:1.45; color:var(--muted); padding-top:10px; min-height:28px; }
+    .status.success { color:var(--green-dark); }.status.warning { color:var(--warning); }.status.error { color:var(--danger); }
+    .list { max-height:160px; overflow:auto; font-size:13px; margin-top:9px; }
+    .list div { padding:7px 0; border-bottom:1px solid #edf3ee; }
+    .leaflet-popup-content button { width:100%; margin-top:8px; }.leaflet-popup-content { min-width:175px; }.leaflet-popup-content strong { font-size:15px; }
+    @media(max-width:760px) {
+      header { padding:12px 15px; align-items:flex-start; }.brand { padding-top:6px; }.account { max-width:66%; }.account-copy { display:none; }
+      main { display:flex; flex-direction:column; padding:10px; gap:10px; }.panel { width:100%; padding:16px; }.metrics { margin:10px 0; }.big { font-size:30px; }
+      #map { height:58vh; min-height:350px; }.maphead { padding:12px; }.mapwrap { order:1; }.panel { order:2; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">🌎 Meu <span>Brasil</span></div>
+    <div class="account">
+      <div class="account-copy" aria-live="polite">
+        <strong id="accountName">Marcações neste navegador</strong>
+        <small id="accountDetail">Entre com Google para sincronizar</small>
+      </div>
+      <button id="authButton" class="outline login-button" type="button">Entrar com Google</button>
+    </div>
+  </header>
 
-async function loadAll(){
- $('status').textContent='Carregando os 27 mapas estaduais e seus municípios...';
- $('subtitle').textContent='Brasil · municípios';
- if(layer){map.removeLayer(layer);layer=null}
- let finished=0,failed=[];
- const collections=await Promise.all(states.map(async ([uf,code,name])=>{
-  try{
-   const res=await fetch(`https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-${code}-mun.json`);
-   if(!res.ok)throw Error('HTTP '+res.status);
-   const data=await res.json();
-   (data.features||[]).forEach(f=>{f.properties=f.properties||{};f.properties.uf=uf});
-   return data.features||[];
-  }catch(e){failed.push(uf);return []}
-  finally{finished++;$('status').textContent=`Carregando mapas: ${finished}/27 estados...`}
- }));
- if($('state').value)return;
- const features=collections.flat();
- if(!features.length){$('status').textContent='Não foi possível obter os mapas. Verifique sua internet e recarregue.';return}
- layer=L.geoJSON({type:'FeatureCollection',features},{renderer:L.canvas(),style:f=>style(f,f.properties.uf),onEachFeature:(f,l)=>{
-  const uf=f.properties.uf,k=keyFor(f,uf),n=nameFor(f);
-  l.on('click',()=>{
-   const marked=!!saved[k],popup=document.createElement('div');
-   const title=document.createElement('strong');title.textContent=n;popup.append(title,document.createElement('br'));
-   const small=document.createElement('small');small.textContent=uf+' · '+(marked?'Visitada':'Não visitada');popup.append(small,document.createElement('br'));
-   const btn=document.createElement('button');btn.textContent=marked?'Desmarcar visita':'✓ Marcar como visitada';
-   btn.onclick=()=>{if(saved[k])delete saved[k];else saved[k]={uf,name:n};persist();map.closePopup()};
-   popup.append(btn);l.bindPopup(popup).openPopup();
-  });
- }}).addTo(map);
- map.fitBounds(layer.getBounds(),{padding:[8,8]});
- $('status').textContent=features.length.toLocaleString('pt-BR')+' municípios/áreas carregados'+(failed.length?'. Falharam: '+failed.join(', '):'.');
- refresh();
-}
-function escapeHtml(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function style(f,uf){return {color:'#88a69a',weight:.75,fillColor:saved[keyFor(f,uf)]?'#19a873':'#ffffff',fillOpacity:saved[keyFor(f,uf)]?.82:.72}}
-async function loadState(uf){
-if(!uf){await loadAll();return;}const [_,code,name]=byUF[uf];$('status').textContent=`Carregando municípios de ${name}...`;$('subtitle').textContent=name;
-if(layer){map.removeLayer(layer);layer=null}
-const url=`https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-${code}-mun.json`;
-try{
-const res=await fetch(url);if(!res.ok)throw Error('HTTP '+res.status);const data=await res.json();
-if($('state').value!==uf)return;
-layer=L.geoJSON(data,{renderer:L.canvas(),style:f=>style(f,uf),onEachFeature:(f,l)=>{
-let k=keyFor(f,uf),n=nameFor(f);featureNames[k]=n;
-l.on('click',()=>{const marked=!!saved[k];const popup=document.createElement('div');const title=document.createElement('strong');title.textContent=n;popup.append(title);popup.append(document.createElement('br'));const detail=document.createElement('small');detail.textContent=`${name} · ${marked?'Já visitada':'Ainda não visitada'}`;popup.append(detail);popup.append(document.createElement('br'));const btn=document.createElement('button');btn.textContent=marked?'Desmarcar visita':'✓ Marcar como visitada';btn.onclick=()=>{if(saved[k])delete saved[k];else saved[k]={uf,name:n};persist();map.closePopup()};popup.append(btn);l.bindPopup(popup).openPopup()});
-}}).addTo(map);
-map.fitBounds(layer.getBounds(),{padding:[12,12]});loadedState=uf;$('status').textContent=`${data.features.length} áreas municipais carregadas. Toque em uma cidade.`;refresh();
-}catch(e){$('status').textContent='Não foi possível carregar o mapa municipal. Verifique sua internet e tente selecionar o estado novamente.';console.error(e)}
-}
-$('state').addEventListener('change',e=>{refresh();loadState(e.target.value)});
-$('resetView').onclick=()=>{$('state').value='';loadAll()};
-$('export').onclick=()=>{const blob=new Blob([JSON.stringify({app:'Meu Brasil',version:1,visits:saved},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='meu-brasil-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-$('importBtn').onclick=()=>$('importFile').click();
-$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{let j=JSON.parse(await f.text());if(!j.visits||typeof j.visits!=='object'||Array.isArray(j.visits))throw Error();if(!confirm('Substituir suas marcações atuais pelo arquivo importado?'))return;saved=j.visits;persist();alert('Marcações importadas!')}catch(e){alert('Arquivo de backup inválido.')}e.target.value=''};
-try {let test='meu-brasil-teste';localStorage.setItem(test,'ok');if(localStorage.getItem(test)!=='ok')throw Error();localStorage.removeItem(test);$('saveStatus').textContent='Armazenamento disponível neste navegador';}catch(e){$('saveStatus').textContent='⚠ Armazenamento indisponível. Abra diretamente no Safari.';$('saveStatus').style.color='#b34224'}
-refresh();loadAll();
-</script></body></html>
+  <main>
+    <section class="panel" aria-label="Progresso de viagem">
+      <div class="eyebrow">Seu progresso pelo Brasil</div>
+      <div class="big" id="pct">0,00%</div>
+      <div class="progress" aria-label="Progresso"><div id="bar"></div></div>
+      <div class="metrics">
+        <div class="metric"><b id="count">0</b><small>Municípios visitados</small></div>
+        <div class="metric"><b id="remaining">5.570</b><small>Por conhecer*</small></div>
+      </div>
+
+      <label for="state">Visualizar Brasil inteiro ou filtrar por estado</label>
+      <select id="state"><option value="">Brasil inteiro (todas as cidades)</option></select>
+
+      <div id="saveStatus" class="status" aria-live="polite">Marcações salvas apenas neste navegador.</div>
+      <div id="status" class="status" aria-live="polite">Carregando o mapa de todos os municípios do Brasil...</div>
+
+      <label>Suas cidades visitadas neste estado</label>
+      <div class="list" id="visitedList"><span class="hint">Nenhuma cidade marcada neste estado.</span></div>
+
+      <div class="actions">
+        <button id="export" class="secondary" type="button">Exportar dados</button>
+        <button id="importBtn" class="outline" type="button">Importar dados</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+
+      <div class="notice" id="syncNotice">
+        <strong>Backup local ativo</strong>
+        Suas marcações continuam neste navegador. Ao entrar com Google, elas são adicionadas à sua conta e passam a aparecer nos outros navegadores.
+      </div>
+      <p class="hint">Toque em uma cidade no mapa e escolha “Marcar como visitada”. O arquivo exportado é um backup que pode ser importado depois.</p>
+      <p class="hint">* Indicador baseado em 5.570 unidades de contagem (5.569 municípios e o Distrito Federal), conforme IBGE 2025. Não mede a área efetivamente percorrida.</p>
+    </section>
+
+    <section class="mapwrap" aria-label="Mapa interativo">
+      <div class="maphead">
+        <div><h2>Mapa interativo</h2><small id="subtitle">Brasil · todos os municípios</small></div>
+        <button class="secondary" id="resetView" type="button">Ver Brasil</button>
+      </div>
+      <div id="map"></div>
+      <div class="legend"><span><i class="dot visited"></i>Visitado</span><span><i class="dot unvisited"></i>Não visitado</span><span>Toque em cada município para marcar ou desmarcar</span></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module">
+    /*
+      CONFIGURAÇÃO FIREBASE
+      Cole abaixo exatamente o objeto firebaseConfig fornecido pelo Firebase Console.
+      Esta configuração é pública; as regras de firestore.rules protegem os dados.
+    */
+    const firebaseConfig = {
+      apiKey: 'COLE_AQUI_A_API_KEY',
+      authDomain: 'COLE_AQUI_O_AUTH_DOMAIN',
+      projectId: 'COLE_AQUI_O_PROJECT_ID',
+      storageBucket: 'COLE_AQUI_O_STORAGE_BUCKET',
+      messagingSenderId: 'COLE_AQUI_O_MESSAGING_SENDER_ID',
+      appId: 'COLE_AQUI_O_APP_ID'
+    };
+
+    const states = [
+      ['AC',12,'Acre'],['AL',27,'Alagoas'],['AP',16,'Amapá'],['AM',13,'Amazonas'],['BA',29,'Bahia'],['CE',23,'Ceará'],['DF',53,'Distrito Federal'],['ES',32,'Espírito Santo'],['GO',52,'Goiás'],['MA',21,'Maranhão'],['MT',51,'Mato Grosso'],['MS',50,'Mato Grosso do Sul'],['MG',31,'Minas Gerais'],['PA',15,'Pará'],['PB',25,'Paraíba'],['PR',41,'Paraná'],['PE',26,'Pernambuco'],['PI',22,'Piauí'],['RJ',33,'Rio de Janeiro'],['RN',24,'Rio Grande do Norte'],['RS',43,'Rio Grande do Sul'],['RO',11,'Rondônia'],['RR',14,'Roraima'],['SC',42,'Santa Catarina'],['SP',35,'São Paulo'],['SE',28,'Sergipe'],['TO',17,'Tocantins']
+    ];
+    const TOTAL_CITIES = 5570;
+    // A chave antiga continua sendo a fila de marcações feitas sem login.
+    // Dados de uma conta nunca são gravados aqui, para não misturar contas no mesmo navegador.
+    const storageKey = 'meu-brasil-visitas-v1';
+    const cloudCacheKey = (uid) => `meu-brasil-visitas-cloud-v1:${uid}`;
+    const $ = (id) => document.getElementById(id);
+    const byUF = Object.fromEntries(states.map((state) => [state[0], state]));
+
+    let saved = readLocalVisits();
+    let layer = null;
+    let mapLoadToken = 0;
+    let firebase = null;
+    let activeUser = null;
+    let cloudVisits = {};
+    let cloudReady = false;
+    let unsubscribeCloud = null;
+    let authRunToken = 0;
+    let pendingChanges = {};
+    let pendingFlushPromise = null;
+    let pendingFlushRun = 0;
+    let pendingRetryTimer = null;
+    let pendingRetryAttempt = 0;
+
+    function isVisit(value, fallbackKey = '') {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const key = String(value.key || fallbackKey).trim();
+      const uf = String(value.uf || key.split(':')[0] || '').trim().toUpperCase();
+      const name = String(value.name || '').trim();
+      if (!/^[A-Z]{2}:[^/]{1,37}$/.test(key) || !name) return null;
+      return { key, uf, name };
+    }
+
+    function cleanVisits(value) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+      const result = {};
+      for (const [key, visit] of Object.entries(value)) {
+        const normalized = isVisit(visit, key);
+        if (normalized) result[normalized.key] = { uf: normalized.uf, name: normalized.name };
+      }
+      return result;
+    }
+
+    function readVisitsFromStorage(key) {
+      try { return cleanVisits(JSON.parse(localStorage.getItem(key) || '{}')); }
+      catch { return {}; }
+    }
+
+    function saveVisitsToStorage(key, visits) {
+      try {
+        localStorage.setItem(key, JSON.stringify(visits));
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function readLocalVisits() {
+      return readVisitsFromStorage(storageKey);
+    }
+
+    function writeLocalVisits() {
+      const savedLocally = saveVisitsToStorage(storageKey, saved);
+      if (!savedLocally) setSaveStatus('⚠ Este navegador não permitiu o backup local. Exporte seus dados antes de fechar.', 'error');
+      return savedLocally;
+    }
+
+    function clearLocalVisits() {
+      try {
+        localStorage.removeItem(storageKey);
+        return true;
+      } catch (error) {
+        setSaveStatus('⚠ A migração foi concluída, mas o navegador não conseguiu limpar a fila local.', 'warning');
+        return false;
+      }
+    }
+
+    function readCloudCache(uid) {
+      return readVisitsFromStorage(cloudCacheKey(uid));
+    }
+
+    function writeCloudCache(uid, visits) {
+      return saveVisitsToStorage(cloudCacheKey(uid), visits);
+    }
+
+    function pendingCacheKey(uid) {
+      return `meu-brasil-visitas-pendentes-v1:${uid}`;
+    }
+
+    function cleanPendingChanges(value) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+      const result = {};
+      for (const [key, change] of Object.entries(value)) {
+        if (!/^[A-Z]{2}:/.test(key) || !change || typeof change !== 'object') continue;
+        if (change.type === 'delete') result[key] = { type:'delete' };
+        if (change.type === 'set') {
+          const visit = isVisit(change.visit, key);
+          if (visit) result[key] = { type:'set', visit:{ uf:visit.uf, name:visit.name } };
+        }
+      }
+      return result;
+    }
+
+    function readPendingChanges(uid) {
+      try { return cleanPendingChanges(JSON.parse(localStorage.getItem(pendingCacheKey(uid)) || '{}')); }
+      catch { return {}; }
+    }
+
+    function writePendingChanges(uid, changes = pendingChanges) {
+      const stored = saveVisitsToStorage(pendingCacheKey(uid), changes);
+      if (!stored) setSaveStatus('⚠ O navegador não conseguiu guardar alterações pendentes para a nuvem.', 'warning');
+      return stored;
+    }
+
+    function samePendingChange(first, second) {
+      return JSON.stringify(first) === JSON.stringify(second);
+    }
+
+    function applyPendingChanges(baseVisits, changes) {
+      const result = cleanVisits(baseVisits);
+      for (const [key, change] of Object.entries(changes)) {
+        if (change.type === 'delete') delete result[key];
+        else result[key] = { uf:change.visit.uf, name:change.visit.name };
+      }
+      return result;
+    }
+
+    function setSaveStatus(message, tone = '') {
+      const element = $('saveStatus');
+      element.textContent = message;
+      element.className = `status ${tone}`.trim();
+    }
+
+    function setAccount(user) {
+      if (user) {
+        $('accountName').textContent = user.displayName || user.email || 'Conta Google conectada';
+        $('accountDetail').textContent = 'Sincronização da sua conta';
+        $('authButton').textContent = 'Sair';
+        $('syncNotice').innerHTML = '<strong>Sincronização ativa</strong>Suas marcações são salvas nesta conta e atualizadas automaticamente em outros navegadores.';
+      } else {
+        $('accountName').textContent = 'Marcações neste navegador';
+        $('accountDetail').textContent = firebase ? 'Entre com Google para sincronizar' : 'Configure o Firebase para sincronizar';
+        $('authButton').textContent = firebase ? 'Entrar com Google' : 'Configurar Firebase';
+        $('syncNotice').innerHTML = '<strong>Backup local ativo</strong>Suas marcações continuam neste navegador. Ao entrar com Google, elas são adicionadas à sua conta e passam a aparecer nos outros navegadores.';
+      }
+    }
+
+    function keyFor(feature, uf) {
+      const properties = feature.properties || {};
+      const raw = properties.id || properties.cd_geocmu || properties.codarea || properties.codigo_ibge || properties.code || feature.id;
+      return `${uf}:${String(raw || properties.name || properties.nome || '').trim()}`;
+    }
+
+    function nameFor(feature) {
+      const properties = feature.properties || {};
+      return properties.nome || properties.name || properties.NM_MUN || properties.description || 'Município';
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    }
+
+    function style(feature, uf) {
+      const visited = Boolean(saved[keyFor(feature, uf)]);
+      return { color:'#88a69a', weight:.75, fillColor:visited ? '#19a873' : '#ffffff', fillOpacity:visited ? .82 : .72 };
+    }
+
+    function refresh() {
+      const count = Object.keys(saved).length;
+      const percentage = (count / TOTAL_CITIES) * 100;
+      $('count').textContent = count.toLocaleString('pt-BR');
+      $('remaining').textContent = Math.max(0, TOTAL_CITIES - count).toLocaleString('pt-BR');
+      $('pct').textContent = percentage.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + '%';
+      $('bar').style.width = `${Math.min(percentage, 100)}%`;
+      const uf = $('state').value;
+      const items = Object.entries(saved)
+        .filter(([, visit]) => !uf || visit.uf === uf)
+        .sort(([, a], [, b]) => a.name.localeCompare(b.name, 'pt-BR'));
+      $('visitedList').innerHTML = items.length
+        ? items.map(([, visit]) => `<div>✓ ${escapeHtml(visit.name)}</div>`).join('')
+        : '<span class="hint">Nenhuma cidade marcada neste estado.</span>';
+      if (layer) layer.eachLayer((item) => {
+        if (item.feature) item.setStyle(style(item.feature, item.feature.properties?.uf || uf));
+      });
+    }
+
+    const map = L.map('map', { preferCanvas:true }).setView([-14.6, -52.7], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:18,
+      attribution:'© OpenStreetMap contributors'
+    }).addTo(map);
+
+    function attachPopup(feature, mapLayer, uf, stateName) {
+      const key = keyFor(feature, uf);
+      const name = nameFor(feature);
+      mapLayer.on('click', () => {
+        const marked = Boolean(saved[key]);
+        const popup = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = name;
+        const details = document.createElement('small');
+        details.textContent = `${stateName || uf} · ${marked ? 'Visitada' : 'Não visitada'}`;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = marked ? 'Desmarcar visita' : '✓ Marcar como visitada';
+        button.onclick = () => {
+          button.disabled = true;
+          toggleVisit(key, { uf, name });
+          map.closePopup();
+        };
+        popup.append(title, document.createElement('br'), details, document.createElement('br'), button);
+        mapLayer.bindPopup(popup).openPopup();
+      });
+    }
+
+    function renderFeatures(features, selectedUF = '') {
+      if (layer) map.removeLayer(layer);
+      layer = L.geoJSON({ type:'FeatureCollection', features }, {
+        renderer:L.canvas(),
+        style:(feature) => style(feature, feature.properties?.uf || selectedUF),
+        onEachFeature:(feature, mapLayer) => {
+          const uf = feature.properties?.uf || selectedUF;
+          const stateName = byUF[uf]?.[2] || uf;
+          attachPopup(feature, mapLayer, uf, stateName);
+        }
+      }).addTo(map);
+      if (layer.getLayers().length) map.fitBounds(layer.getBounds(), { padding:[10, 10] });
+      refresh();
+    }
+
+    async function fetchState(uf, code) {
+      const response = await fetch(`https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-${code}-mun.json`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      for (const feature of data.features || []) {
+        feature.properties = feature.properties || {};
+        feature.properties.uf = uf;
+      }
+      return data.features || [];
+    }
+
+    async function loadAll() {
+      const token = ++mapLoadToken;
+      $('status').textContent = 'Carregando os 27 mapas estaduais e seus municípios...';
+      $('subtitle').textContent = 'Brasil · municípios';
+      let finished = 0;
+      const failures = [];
+      const collections = await Promise.all(states.map(async ([uf, code]) => {
+        try { return await fetchState(uf, code); }
+        catch { failures.push(uf); return []; }
+        finally {
+          finished += 1;
+          if (token === mapLoadToken) $('status').textContent = `Carregando mapas: ${finished}/27 estados...`;
+        }
+      }));
+      if (token !== mapLoadToken || $('state').value) return;
+      const features = collections.flat();
+      if (!features.length) {
+        $('status').textContent = 'Não foi possível obter os mapas. Verifique sua internet e recarregue.';
+        return;
+      }
+      renderFeatures(features);
+      $('status').textContent = `${features.length.toLocaleString('pt-BR')} municípios/áreas carregados${failures.length ? `. Falharam: ${failures.join(', ')}` : '.'}`;
+    }
+
+    async function loadState(uf) {
+      if (!uf) { await loadAll(); return; }
+      const token = ++mapLoadToken;
+      const [, code, name] = byUF[uf];
+      $('status').textContent = `Carregando municípios de ${name}...`;
+      $('subtitle').textContent = name;
+      try {
+        const features = await fetchState(uf, code);
+        if (token !== mapLoadToken || $('state').value !== uf) return;
+        renderFeatures(features, uf);
+        $('status').textContent = `${features.length.toLocaleString('pt-BR')} áreas municipais carregadas. Toque em uma cidade.`;
+      } catch (error) {
+        if (token === mapLoadToken) $('status').textContent = 'Não foi possível carregar o mapa municipal. Verifique sua internet e tente selecionar o estado novamente.';
+        console.error(error);
+      }
+    }
+
+    function firebaseIsConfigured() {
+      return Object.values(firebaseConfig).every((value) => {
+        const text = String(value || '').trim();
+        return text && !text.includes('COLE_AQUI') && !text.includes('SEU_');
+      });
+    }
+
+    function cityDocumentId(key) {
+      return key;
+    }
+
+    function visitDocument(key, visit) {
+      return {
+        key,
+        uf: visit.uf,
+        name: visit.name,
+        updatedAt: firebase.serverTimestamp()
+      };
+    }
+
+    function stopCloudListener() {
+      if (unsubscribeCloud) unsubscribeCloud();
+      unsubscribeCloud = null;
+      cloudReady = false;
+      cloudVisits = {};
+      pendingChanges = {};
+      pendingFlushRun += 1;
+      pendingFlushPromise = null;
+      if (pendingRetryTimer) window.clearTimeout(pendingRetryTimer);
+      pendingRetryTimer = null;
+      pendingRetryAttempt = 0;
+    }
+
+    function chunks(items, size = 400) {
+      const result = [];
+      for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+      return result;
+    }
+
+    function isCurrentUser(uid, token) {
+      return Boolean(firebase) && token === authRunToken && activeUser?.uid === uid;
+    }
+
+    function requireCurrentUser(uid, token) {
+      if (!isCurrentUser(uid, token)) throw new Error('A conta ativa foi alterada durante a sincronização.');
+    }
+
+    function schedulePendingRetry(uid, token) {
+      if (!isCurrentUser(uid, token) || pendingFlushPromise || pendingRetryTimer || !Object.keys(pendingChanges).length) return;
+      if (pendingRetryAttempt >= 6) return;
+      const delay = Math.min(60000, 1000 * (2 ** pendingRetryAttempt));
+      pendingRetryAttempt += 1;
+      pendingRetryTimer = window.setTimeout(() => {
+        pendingRetryTimer = null;
+        flushPendingChanges(uid, token);
+      }, delay);
+    }
+
+    async function uploadVisits(uid, visits, token) {
+      const entries = Object.entries(cleanVisits(visits));
+      for (const part of chunks(entries)) {
+        requireCurrentUser(uid, token);
+        const batch = firebase.writeBatch(firebase.db);
+        for (const [key, visit] of part) {
+          batch.set(firebase.doc(firebase.db, 'users', uid, 'visits', cityDocumentId(key)), visitDocument(key, visit), { merge:true });
+        }
+        await batch.commit();
+        requireCurrentUser(uid, token);
+      }
+    }
+
+    async function migrateLocalVisits(uid, token) {
+      const localVisits = readLocalVisits();
+      const count = Object.keys(localVisits).length;
+      if (!count) return;
+      setSaveStatus(`Migrando ${count.toLocaleString('pt-BR')} marcações deste navegador…`, 'warning');
+      await uploadVisits(uid, localVisits, token);
+      requireCurrentUser(uid, token);
+      clearLocalVisits();
+    }
+
+    function visitFromCloud(document) {
+      const data = document.data();
+      const key = String(data.key || decodeURIComponent(document.id));
+      return isVisit(data, key);
+    }
+
+    function subscribeToCloud(user, token) {
+      const visitsRef = firebase.collection(firebase.db, 'users', user.uid, 'visits');
+      unsubscribeCloud = firebase.onSnapshot(visitsRef, (snapshot) => {
+        if (token !== authRunToken || activeUser?.uid !== user.uid) return;
+        const next = {};
+        snapshot.forEach((document) => {
+          const visit = visitFromCloud(document);
+          if (visit) next[visit.key] = { uf:visit.uf, name:visit.name };
+        });
+        cloudVisits = next;
+        cloudReady = true;
+        writeCloudCache(user.uid, next);
+        saved = applyPendingChanges(next, pendingChanges);
+        refresh();
+        if (Object.keys(pendingChanges).length) {
+          setSaveStatus('Alterações locais aguardam a sincronização da conta.', 'warning');
+          schedulePendingRetry(user.uid, token);
+        } else {
+          setSaveStatus(`✓ Sincronizado na conta Google · ${Object.keys(saved).length.toLocaleString('pt-BR')} marcações`, 'success');
+        }
+      }, (error) => {
+        console.error(error);
+        setSaveStatus('⚠ Não foi possível sincronizar agora. Suas marcações locais continuam preservadas.', 'warning');
+      });
+    }
+
+    function flushPendingChanges(uid, token) {
+      if (!isCurrentUser(uid, token) || pendingFlushPromise) return;
+      if (pendingRetryTimer) {
+        window.clearTimeout(pendingRetryTimer);
+        pendingRetryTimer = null;
+      }
+      const run = ++pendingFlushRun;
+      pendingFlushPromise = (async () => {
+        let retryAfterFailure = false;
+        try {
+          while (isCurrentUser(uid, token) && run === pendingFlushRun) {
+            const part = Object.entries(pendingChanges).slice(0, 400);
+            if (!part.length) break;
+            const batch = firebase.writeBatch(firebase.db);
+            for (const [key, change] of part) {
+              const ref = firebase.doc(firebase.db, 'users', uid, 'visits', cityDocumentId(key));
+              if (change.type === 'delete') batch.delete(ref);
+              else batch.set(ref, visitDocument(key, change.visit), { merge:true });
+            }
+            await batch.commit();
+            requireCurrentUser(uid, token);
+            if (run !== pendingFlushRun) return;
+            for (const [key, committedChange] of part) {
+              if (!samePendingChange(pendingChanges[key], committedChange)) continue;
+              if (committedChange.type === 'delete') delete cloudVisits[key];
+              else cloudVisits[key] = { uf:committedChange.visit.uf, name:committedChange.visit.name };
+              delete pendingChanges[key];
+            }
+            writePendingChanges(uid);
+            writeCloudCache(uid, cloudVisits);
+            saved = applyPendingChanges(cloudVisits, pendingChanges);
+            refresh();
+          }
+          if (isCurrentUser(uid, token) && !Object.keys(pendingChanges).length) {
+            pendingRetryAttempt = 0;
+            setSaveStatus('✓ Marcação salva e sincronizada na sua conta.', 'success');
+          }
+        } catch (error) {
+          console.error(error);
+          if (isCurrentUser(uid, token)) {
+            if (error?.code === 'permission-denied') {
+              setSaveStatus('⚠ O Firebase recusou a alteração. Confira as regras do Firestore e a conta usada.', 'error');
+            } else if (pendingRetryAttempt >= 6) {
+              setSaveStatus('⚠ A alteração ficou guardada neste navegador. Confira a configuração do Firebase e tente marcar novamente.', 'warning');
+            } else {
+              setSaveStatus('⚠ A alteração ficou guardada neste navegador e será tentada novamente quando a nuvem responder.', 'warning');
+              retryAfterFailure = true;
+            }
+          }
+        } finally {
+          if (run === pendingFlushRun) {
+            pendingFlushPromise = null;
+            if (retryAfterFailure) schedulePendingRetry(uid, token);
+          }
+        }
+      })();
+    }
+
+    async function handleAuthChange(user) {
+      const token = ++authRunToken;
+      stopCloudListener();
+      activeUser = user || null;
+      setAccount(activeUser);
+      if (!activeUser) {
+        saved = readLocalVisits();
+        refresh();
+        if (firebase) setSaveStatus('Marcações salvas neste navegador. Entre com Google para sincronizar.', '');
+        return;
+      }
+      const uid = activeUser.uid;
+      const anonymousVisits = readLocalVisits();
+      cloudVisits = { ...readCloudCache(uid), ...anonymousVisits };
+      pendingChanges = readPendingChanges(uid);
+      saved = applyPendingChanges(cloudVisits, pendingChanges);
+      refresh();
+      try {
+        setSaveStatus('Preparando a sincronização da sua conta…', 'warning');
+        await migrateLocalVisits(uid, token);
+        if (!isCurrentUser(uid, token)) return;
+        subscribeToCloud(user, token);
+        flushPendingChanges(uid, token);
+      } catch (error) {
+        console.error(error);
+        setSaveStatus('⚠ Não foi possível migrar para a nuvem. Suas marcações continuam no navegador.', 'warning');
+      }
+    }
+
+    async function initializeFirebase() {
+      if (!firebaseIsConfigured()) {
+        setAccount(null);
+        setSaveStatus('Marcações salvas neste navegador. Configure o Firebase para ativar a sincronização.', '');
+        return;
+      }
+      try {
+        const version = '13.0.0';
+        const base = `https://www.gstatic.com/firebasejs/${version}`;
+        const [appModule, authModule, firestoreModule] = await Promise.all([
+          import(`${base}/firebase-app.js`),
+          import(`${base}/firebase-auth.js`),
+          import(`${base}/firebase-firestore.js`)
+        ]);
+        const app = appModule.initializeApp(firebaseConfig);
+        const auth = authModule.getAuth(app);
+        // Alguns navegadores bloqueiam armazenamento persistente em modo privado.
+        // O Firebase ainda pode concluir o login na sessão atual nesses casos.
+        try {
+          await authModule.setPersistence(auth, authModule.browserLocalPersistence);
+        } catch (persistenceError) {
+          console.warn('Persistência de login indisponível neste navegador.', persistenceError);
+        }
+        firebase = {
+          auth,
+          db:firestoreModule.getFirestore(app),
+          provider:new authModule.GoogleAuthProvider(),
+          onAuthStateChanged:authModule.onAuthStateChanged,
+          signInWithPopup:authModule.signInWithPopup,
+          signOut:authModule.signOut,
+          collection:firestoreModule.collection,
+          doc:firestoreModule.doc,
+          onSnapshot:firestoreModule.onSnapshot,
+          getDocs:firestoreModule.getDocs,
+          writeBatch:firestoreModule.writeBatch,
+          serverTimestamp:firestoreModule.serverTimestamp
+        };
+        setAccount(null);
+        firebase.onAuthStateChanged(auth, handleAuthChange);
+      } catch (error) {
+        console.error(error);
+        firebase = null;
+        setAccount(null);
+        setSaveStatus('⚠ O Firebase não iniciou. Confira as configurações no arquivo e tente novamente.', 'error');
+      }
+    }
+
+    function toggleVisit(key, visit) {
+      const marked = Boolean(saved[key]);
+      if (!firebase || !activeUser) {
+        if (marked) delete saved[key];
+        else saved[key] = { uf:visit.uf, name:visit.name };
+        writeLocalVisits();
+        refresh();
+        setSaveStatus('✓ Marcação salva neste navegador. Entre com Google para sincronizar.', 'success');
+        return;
+      }
+      const uid = activeUser.uid;
+      const token = authRunToken;
+      pendingChanges[key] = marked
+        ? { type:'delete' }
+        : { type:'set', visit:{ uf:visit.uf, name:visit.name } };
+      pendingRetryAttempt = 0;
+      writePendingChanges(uid);
+      saved = applyPendingChanges(cloudVisits, pendingChanges);
+      refresh();
+      setSaveStatus('Salvando a marcação na sua conta…', 'warning');
+      flushPendingChanges(uid, token);
+    }
+
+    async function replaceFromBackup(nextVisits) {
+      const replacement = cleanVisits(nextVisits);
+      if (!firebase || !activeUser) {
+        saved = replacement;
+        writeLocalVisits();
+        refresh();
+        setSaveStatus('✓ Backup importado neste navegador. Entre com Google para sincronizar.', 'success');
+        return;
+      }
+      const uid = activeUser.uid;
+      const token = authRunToken;
+      try {
+        let current = cloudVisits;
+        if (!cloudReady) {
+          const snapshot = await firebase.getDocs(firebase.collection(firebase.db, 'users', uid, 'visits'));
+          requireCurrentUser(uid, token);
+          current = {};
+          snapshot.forEach((document) => {
+            const visit = visitFromCloud(document);
+            if (visit) current[visit.key] = { uf:visit.uf, name:visit.name };
+          });
+        }
+        requireCurrentUser(uid, token);
+        pendingChanges = {};
+        for (const [key, visit] of Object.entries(replacement)) {
+          pendingChanges[key] = { type:'set', visit:{ uf:visit.uf, name:visit.name } };
+        }
+        for (const key of Object.keys(current)) {
+          if (!replacement[key]) pendingChanges[key] = { type:'delete' };
+        }
+        cloudVisits = current;
+        writePendingChanges(uid);
+        saved = applyPendingChanges(cloudVisits, pendingChanges);
+        refresh();
+        setSaveStatus('Importando o backup para a sua conta…', 'warning');
+        flushPendingChanges(uid, token);
+      } catch (error) {
+        console.error(error);
+        if (isCurrentUser(uid, token)) {
+          saved = replacement;
+          pendingChanges = Object.fromEntries(Object.entries(replacement).map(([key, visit]) => [key, { type:'set', visit }]));
+          writePendingChanges(uid);
+          refresh();
+          setSaveStatus('⚠ Backup guardado neste navegador. Quando a nuvem voltar, importe o arquivo novamente para substituir as visitas da conta.', 'warning');
+        }
+      }
+    }
+
+    $('state').addEventListener('change', (event) => { refresh(); loadState(event.target.value); });
+    $('resetView').onclick = () => { $('state').value = ''; loadAll(); };
+    $('authButton').onclick = async () => {
+      if (!firebase) {
+        alert('Configure o objeto firebaseConfig no início deste arquivo. O passo a passo está no README do projeto.');
+        return;
+      }
+      try {
+        $('authButton').disabled = true;
+        if (activeUser) await firebase.signOut(firebase.auth);
+        else await firebase.signInWithPopup(firebase.auth, firebase.provider);
+      } catch (error) {
+        console.error(error);
+        const message = error.code === 'auth/popup-blocked'
+          ? 'O navegador bloqueou a janela do Google. Permita pop-ups para este site e tente novamente.'
+          : 'Não foi possível entrar com Google. Confira os domínios autorizados no Firebase e tente novamente.';
+        setSaveStatus(`⚠ ${message}`, 'warning');
+      } finally {
+        $('authButton').disabled = false;
+      }
+    };
+    $('export').onclick = () => {
+      const blob = new Blob([JSON.stringify({ app:'Meu Brasil', version:2, exportedAt:new Date().toISOString(), visits:saved }, null, 2)], { type:'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'meu-brasil-backup.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    };
+    $('importBtn').onclick = () => $('importFile').click();
+    $('importFile').onchange = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const backup = JSON.parse(await file.text());
+        const visits = cleanVisits(backup.visits);
+        if (!backup.visits || typeof backup.visits !== 'object' || Array.isArray(backup.visits)) throw new Error('Formato inválido');
+        if (!confirm('Substituir suas marcações atuais pelas marcações deste backup?')) return;
+        await replaceFromBackup(visits);
+      } catch (error) {
+        console.error(error);
+        alert('Arquivo de backup inválido. Escolha um arquivo exportado pelo Meu Brasil.');
+      } finally {
+        event.target.value = '';
+      }
+    };
+
+    states.forEach(([uf,, name]) => {
+      const option = document.createElement('option');
+      option.value = uf;
+      option.textContent = `${name} (${uf})`;
+      $('state').append(option);
+    });
+    try {
+      const testKey = 'meu-brasil-teste';
+      localStorage.setItem(testKey, 'ok');
+      if (localStorage.getItem(testKey) !== 'ok') throw new Error('Sem armazenamento');
+      localStorage.removeItem(testKey);
+    } catch {
+      setSaveStatus('⚠ Armazenamento local indisponível. Exporte seus dados antes de fechar.', 'error');
+    }
+    setAccount(null);
+    refresh();
+    initializeFirebase();
+    loadAll();
+  </script>
+</body>
+</html>

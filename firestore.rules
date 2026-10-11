@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Regras do Cloud Firestore para o Meu Brasil.
+// Publique este arquivo no console do Firebase antes de liberar o app.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owns(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validVisit() {
+      return request.resource.data.keys().hasOnly([
+          'key', 'uf', 'name', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'key', 'uf', 'name', 'updatedAt'
+        ])
+        && request.resource.data.key is string
+        && request.resource.data.key.size() >= 5
+        && request.resource.data.key.size() <= 40
+        && request.resource.data.key.matches('^[A-Z]{2}:[^/]{1,37}$')
+        && request.resource.data.uf is string
+        && request.resource.data.uf.size() == 2
+        && request.resource.data.uf.matches('^[A-Z]{2}$')
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 120
+        // serverTimestamp() é avaliado nas regras como request.time.
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    // Cada usuário lê e altera somente os próprios municípios.
+    // Não há nenhuma regra para outros caminhos: eles ficam bloqueados por padrão.
+    match /users/{userId}/visits/{visitId} {
+      allow get, list: if owns(userId);
+      allow create, update: if owns(userId) && validVisit()
+        && visitId == request.resource.data.key;
+      allow delete: if owns(userId);
+    }
+  }
+}
