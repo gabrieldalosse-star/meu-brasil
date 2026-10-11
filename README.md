@@ -16,14 +16,15 @@ Ao importar um backup com login ativo, o conjunto de cidades da conta é substit
 
 ## Configurar Firebase
 
-Você precisa criar ou usar um projeto Firebase próprio; não existe credencial de projeto no repositório.
+O `index.html` desta entrega já contém a configuração web do projeto `meubrasil-4980c`. A configuração web (incluindo `apiKey`) pode ficar no HTML; ela não concede acesso aos dados. **Nunca** envie chaves de service account, segredos OAuth ou outras chaves privadas ao repositório.
 
-1. No [Firebase Console](https://console.firebase.google.com/), crie um projeto ou abra um existente e registre um **app Web** (`</>`).
-2. Copie o objeto `firebaseConfig` que o Console mostrar. Em `index.html`, mantenha os nomes das seis propriedades e substitua cada valor que começa com `COLE_AQUI_` pelo valor correspondente do objeto fornecido. A configuração web (incluindo `apiKey`) pode ficar no HTML; ela não concede acesso aos dados. **Nunca** envie chaves de service account, segredos OAuth ou outras chaves privadas ao repositório.
-3. Em **Authentication → Sign-in method**, habilite **Google**. Em **Authentication → Settings → Authorized domains**, adicione `gabrieldalosse-star.github.io`. Adicione também um domínio personalizado, se houver, e `localhost` para testar localmente.
-4. Preserve o `authDomain` entregue pelo Firebase (normalmente `seu-projeto.firebaseapp.com`). Não o troque por um domínio `github.io`: o handler de login continua hospedado pelo Firebase.
-5. Em **Firestore Database**, crie o banco no modo de produção. Em **Rules**, copie todo o conteúdo de [`firestore.rules`](./firestore.rules) e clique em **Publish**. Não deixe o banco em *test mode*.
-6. Recarregue o site publicado, marque uma cidade antes de entrar e clique em **Entrar com Google**. A mensagem deve mudar para “Sincronizado na conta Google”.
+1. No [Firebase Console](https://console.firebase.google.com/), abra o projeto `meubrasil-4980c` e confirme que o app Web está registrado.
+2. Em **Authentication → Sign-in method**, habilite **Google**. Em **Authentication → Settings → Authorized domains**, adicione `gabrieldalosse-star.github.io`. Adicione também um domínio personalizado, se houver, e `localhost` para testar localmente.
+3. Preserve o `authDomain` entregue pelo Firebase (`meubrasil-4980c.firebaseapp.com`). Não o troque por um domínio `github.io`: o handler de login continua hospedado pelo Firebase.
+4. Em **Firestore Database**, crie o banco no modo de produção. Em **Rules**, copie todo o conteúdo de [`firestore.rules`](./firestore.rules) e clique em **Publish**. Não deixe o banco em *test mode*.
+5. Recarregue o site publicado, marque uma cidade antes de entrar e clique em **Entrar com Google**. A mensagem deve mudar para “Sincronizado na conta Google”.
+
+Para ligar o app a outro projeto Firebase no futuro, substitua o bloco `firebaseConfig` por aquele fornecido pelo novo projeto.
 
 O app usa os módulos Firebase Web `13.0.0` diretamente do CDN. O login é iniciado por clique e usa popup, que é a opção mais estável para GitHub Pages.
 
